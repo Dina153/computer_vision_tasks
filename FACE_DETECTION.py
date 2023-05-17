@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.misc import face
 
 def convertToRGB(image):
+    
     if image is None:
         raise ValueError("Input image is empty")
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

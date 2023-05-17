@@ -1,182 +1,173 @@
-# importing libraries
-import cv2
 import os
+import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
+from sklearn import svm
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, roc_curve, auc,confusion_matrix, classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns
-import streamlit as st
-
-# loading images from folder
-def load_images_from_folder(folder):
-    training_images = []
-    test_images = []
-    saving_indecies = []
-    for root, _ , files in os.walk(folder):
-        cnt = 0 
-        for file in files:
-            img = cv2.imread(os.path.join(root,file))
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            if img is not None:
-                if (cnt < 24):
-                    training_images.append(img_gray)
-                else:
-                    test_images.append(img_gray)
-                    person = os.path.basename(file)
-                    prefix = person.rpartition('.')[0]
-                    prefix = prefix.rsplit("_", 1)[-1]
-                    saving_indecies.append(prefix)
-            cnt += 1
-    print(saving_indecies)
-    return saving_indecies,training_images,test_images
+import pandas as pd 
 
 
+def PCA(image_path, num_components=20):
+    # Convert image to grayscale
+    image = cv2.imread(image_path, 0)
+    image = cv2.resize(image, (50, 50))
 
-# get mean of images 
-def get_mean_img (images):
-    crop_images = []
-    height, width = images[0].shape
-    for image in images:
-        image = image.flatten()
-        crop_images.append(image)
-    mean_image= np.mean(crop_images,axis=0)
-    mean_image = np.reshape(mean_image, (height, width))
-    return mean_image
+    # Convert image to numpy array
+    X = np.array(image)
 
-#  subtract images from mean
-def get_sub_images(mean_image ,images):
-    substracted_images = []
-    for image in images:
-            sub_img = image - mean_image
-            sub_img =  np.asarray(sub_img).flatten() 
-            substracted_images.append(sub_img)
+    # Reshape 2D array into a 1D array of pixels
+    X = X.reshape(-1, X.shape[1])
 
-    return substracted_images
+    # Step-1: Mean centering
+    X_meaned = X - np.mean(X, axis=0)
 
+    # Step-2: Calculate covariance matrix
+    cov_mat = np.cov(X_meaned, rowvar=False)
 
-# get covariance matrix 
-def get_cov_mat(substracted_images,images):
-    substracted_images = np.asarray(substracted_images)
-    substracted_images_Transpose= np.transpose(substracted_images)
-    cov_mat = np.dot(substracted_images, substracted_images_Transpose)
-    no_images = len(images)
-    cov_mat = (1/(no_images -1 )) *np.asarray(cov_mat)
-    return cov_mat
+    # Step-3: Compute eigenvalues and eigenvectors
+    eigen_values, eigen_vectors = np.linalg.eigh(cov_mat)
 
-# get eigen vectors 
-def get_eigen(cov_mat,substracted_images):
-    eigen_values,eigen_vectors = np.linalg.eig(cov_mat)
-    eigen_vectors = np.dot(eigen_vectors, substracted_images)
-    tot_eigen_values = np.sum(eigen_values)
-    accepted_variance = 0
-    cnt = 0
-    for eigen_val in eigen_values:
-        if ( accepted_variance/ tot_eigen_values < 0.9): 
-            accepted_variance += eigen_val
-            cnt += 1
-    eigen_vectors = eigen_vectors[:cnt , : ] 
-    print ("count of eigen vectors= " , cnt)
-    print ("accepted_variance= " , accepted_variance/ tot_eigen_values)
-    return eigen_vectors
+    # Step-4: Sort eigenvalues and corresponding eigenvectors in descending order
+    sorted_index = np.argsort(eigen_values)[::-1]
+    # sorted_eigenvalues = eigen_values[sorted_index]
+    sorted_eigenvectors = eigen_vectors[:, sorted_index]
 
+    # Step-5: Select subset of eigenvectors
+    eigenvector_subset = sorted_eigenvectors[:, 0:num_components]
 
-# get simillarity between image and eigen vector of the data 
-def get_projection(eigen_vectors,images):
-    images = np.asarray(images)
-    images = np.transpose(images)
-    projected_images = np.dot(eigen_vectors, images)
-    projected_images = np.transpose(projected_images)
-    print (projected_images.shape)
-    return projected_images
-
-
-# model for face recognition
-
-def classify(projected_training_imgs,projected_test_imgs):
-    y = []
-    for i in range (5):
-        for num in range (0,24):
-            y.append(i)
-    RFC = RandomForestClassifier( random_state=5)
-    RFC.fit(projected_training_imgs, y)
-    probs = RFC.predict_proba(projected_test_imgs)
-    score = RFC.predict(projected_test_imgs)
+    # Step-6: Reduce dimensionality of the data
+    X_reduced = np.dot(eigenvector_subset.transpose(), X_meaned.transpose()).transpose()
     
 
-    return RFC, probs,score
+
+    return X_reduced  # Flatten the array before returning
+
+
+
+def train_svm_with_pca(num_components=20, test_size=0.2, random_state=42):
+    # Call the pca_face_recognition function to obtain the predict_label function
    
 
-def get_sub_images_test(mean_image,path):
-    substracted_images = []
-    img = cv2.imread(path)
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    sub_img = img_gray- mean_image
-    sub_img =  np.asarray(sub_img).flatten() 
-    substracted_images.append(sub_img)
+    # Prepare the data for training the SVM model
+    features = []
+    labels = []
 
-    return substracted_images
-
-def show_predicted_image(RFC ,mean_image,eigen_vectors, saving_indices,path):
-    test_image_path = path
-    image = cv2.imread(test_image_path)
-    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    sub_img = image_gray - mean_image
-    sub_img = sub_img.flatten()
-    sub_img = np.transpose(sub_img)
-    projected_image = np.dot(eigen_vectors, sub_img)
-    projected_image = np.transpose(projected_image)
-    label = RFC.predict(projected_image.reshape(1, -1))
-    print("estimated: ",saving_indices[label[0]*2])
-    folder_path = "Face-Recognition-master/data/" + str(saving_indices[label[0]*2])
-    print(folder_path)
-    for root, _, files in os.walk(folder_path):
-        for count, file in enumerate(files) :
-            if(count == 0 ):
-                img = cv2.imread(os.path.join(root,file))
-                img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                break
-
-    cv2.imwrite('results1.jpg', img_gray)
-    return img_gray
-
-def plot_roc_curve(tpr, fpr, scatter = True):
-    '''
-    Plots the ROC Curve by using the list of coordinates (tpr and fpr).
-    
-    Args:
-        tpr: The list of TPRs representing each coordinate.
-        fpr: The list of FPRs representing each coordinate.
-        scatter: When True, the points used on the calculation will be plotted with the line (default = True).
-    '''
-    figure, axis = plt.subplots()
-    if scatter:
-        sns.scatterplot(x = fpr, y = tpr)
-    sns.lineplot(x = fpr, y = tpr)
-    sns.lineplot(x = [0, 1], y = [0, 1], color = 'green')
-    plt.xlim(-0.05, 1.05)
-    plt.ylim(-0.05, 1.05)
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    st.pyplot(figure)
+    for person_id in range(1, 6):
+        person_dir = f"our_faces/data/{person_id}"
+        for filename in os.listdir(person_dir):
+            
+            image_path = os.path.join(person_dir, filename) 
+            predicted_label = PCA(image_path, num_components)
+            features.append(predicted_label)
+            labels.append(person_id)
 
 
-def get_eigen_faces(path):
-    folder = "Face-Recognition-master\data" 
 
-    saving_indices , training_images , test_images = load_images_from_folder(folder)
+    features = np.array(features)
 
-    mean_image = get_mean_img (training_images)
-    substracted_training_images = get_sub_images(mean_image,training_images)
-    substracted_test_images = get_sub_images(mean_image,test_images)
 
-    cov_mat = get_cov_mat(substracted_training_images,training_images)
-    eigen_vectors = get_eigen(cov_mat,substracted_training_images)
-    projected_training_imgs = get_projection(eigen_vectors,substracted_training_images)
-    projected_test_imgs = get_projection(eigen_vectors,substracted_test_images)
-    RFC,y_pred_proba,score  = classify(projected_training_imgs,projected_test_imgs)
-    output_image = show_predicted_image(RFC ,mean_image,eigen_vectors, saving_indices,path)
-    return output_image, y_pred_proba,score
+    features = features.reshape(150, -1)
+
+
+    # Reshape the second array to match the shape of the first array
+    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=test_size, random_state=random_state)
+
+    # Create and train the SVM classifier
+    clf = svm.SVC(kernel='linear', probability=True)
+    clf.fit(X_train, y_train)
+
+    # Make predictions on the test set
+    y_pred = clf.predict(X_test)
+
+    # Evaluate the performance of the SVM model
+    accuracy = accuracy_score(y_test, y_pred)
+    print("accuracy",accuracy)
+    target_names = ['1','2','3','4','5']
+    print(classification_report(y_test, y_pred, target_names=target_names))
+    return clf
+
+
+
+
+def predict_with_svm(clf, image_path):
+
+    predicted_label = PCA(image_path, 20)
+
+    predicted_label = predicted_label.reshape(1,-1)
+    prediction = clf.predict(predicted_label)
+    probs = clf.predict_proba(predicted_label)
+    found = max(max(probs))
+    image = "our_faces/data/"+ str(prediction[0]) +"/"+ str(1) + "_" + str(prediction[0]) + ".jpg"
+    print("prediction",prediction)
+    print("probability",probs)
+    print("is found?",found)
+    return image,prediction,found
+
+
+def get_features(test_dir="our_faces/test"):
+    features = []
+    labels = []
+    for filename in os.listdir(test_dir):
+        image_path = os.path.join(test_dir, filename)
+        person_number = int(filename.split('_')[1].split('.')[0])
+        predicted_label = PCA(image_path)
+        features.append(predicted_label)
+        labels.append(person_number)
+
+    return features, labels
+
+
+def calculate_and_plot_roc_curve(classifier):
+
+    features, labels = get_features()
+    features = np.array(features)
+    features = features.reshape(30, -1)
+    X_test = features
+    y_test = labels
+
+    # Calculate the decision scores for the test set
+    decision_scores = classifier.decision_function(X_test)
+
+    # Compute the false positive rate (FPR), true positive rate (TPR), and threshold values
+    fpr, tpr, _ = roc_curve(y_test, decision_scores[:, 1], pos_label=1)
+    roc_auc = auc(fpr, tpr)
+
+    # Create the ROC curve plot
+    fig, ax = plt.subplots(1, 1, figsize=(4, 3.5))
+    ax.plot(fpr, tpr, color="darkorange", lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+    ax.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate')
+    ax.set_title('Receiver Operating Characteristic')
+    ax.legend(loc="lower right")
+
+    return fig
+
+def create_confusion_matrix(classifier):
+    # Prepare the data for making predictions
+    features, labels = get_features()
+    features = np.array(features)
+    features = features.reshape(30, -1)
+    X_test = features
+    y_test = labels
+
+    # Calculate the decision scores for the test set
+    decision_scores = classifier.decision_function(X_test)
+
+    y_pred = np.argmax(decision_scores, axis=1)
+    conf_mat = confusion_matrix(y_test,y_pred)
+
+    cm_df = pd.DataFrame(conf_mat,
+                     index = ['0','E','D','Y','M','B'], 
+                     columns = ['E','D','Y','M','B','0'])
+    fig, ax = plt.subplots()
+    sns.heatmap(cm_df, annot=True)
+    plt.title('Confusion Matrix')
+    plt.ylabel('Actal Values')
+    plt.xlabel('Predicted Values')
+    return fig
 
