@@ -17,7 +17,7 @@ class Point(object):
 
     def getY(self):
         return self.y
-D:\computer_vision_project\Face_Recognition-main\RegionGrowing.py
+
     
 def getGrayDiff(img, currentPoint, tmpPoint):
     return abs(int(img[currentPoint.x, currentPoint.y]) - int(img[tmpPoint.x, tmpPoint.y]))
