@@ -1,39 +1,82 @@
+
 import numpy as np
 import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
+import time
+# np.random.seed(42)
 
-def region_growing(image, seed):
-    # Create a mask with the same shape as the input image
-    h, w = image.shape[:2]
-    mask = np.zeros((h, w), np.uint8)
+class Point(object):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
-    # Define the seed point and set its value as the initial threshold
-    x, y = seed
-    threshold = image[x, y]
+    def getX(self):
+        return self.x
+
+    def getY(self):
+        return self.y
+D:\computer_vision_project\Face_Recognition-main\RegionGrowing.py
     
-    # Create a queue to hold the pixels to be processed
-    queue = []
-    queue.append((x, y))
+def getGrayDiff(img, currentPoint, tmpPoint):
+    return abs(int(img[currentPoint.x, currentPoint.y]) - int(img[tmpPoint.x, tmpPoint.y]))
 
-    # Loop through the queue until it is empty
-    while queue:
-        # Get the next pixel from the queue
-        x, y = queue.pop(0)
 
-        # Check if the pixel is within the image bounds
-        if x < 0 or y < 0 or x >= h or y >= w:
-            continue
+def selectConnects(p):
+    if p != 0:
+        connects = [Point(-1, -1), Point(0, -1), Point(1, -1),
+                    Point(1, 0), Point(1, 1), Point(0, 1),
+                    Point(-1, 1), Point(-1, 0)]
+    else:
+        connects = [Point(0, -1), Point(1, 0), Point(0, 1), Point(-1, 0)]
 
-        # Check if the pixel has already been processed
-        if mask[x, y]:
-            continue
+    return connects
 
-        # Check if the pixel's intensity is within the threshold
-        if abs(image[x, y] - threshold).any() <= 10:
-            # Add the pixel to the mask and queue
-            mask[x, y] = 255
-            queue.append((x - 1, y))
-            queue.append((x + 1, y))
-            queue.append((x, y - 1))
-            queue.append((x, y + 1))
-    
-    return mask
+
+def regionGrow(img, seeds, threshold, p = 1):
+    height, weight = img.shape
+    seedMark = np.zeros(img.shape)
+    seedList = []
+
+    for seed in seeds:
+        seedList.append(seed)
+    label = 1
+    connects = selectConnects(p)
+
+    while (len(seedList) > 0):
+        currentPoint = seedList.pop(0)
+
+        seedMark[currentPoint.x, currentPoint.y] = label
+
+        for i in range(8):
+            tmpX = currentPoint.x + connects[i].x
+            tmpY = currentPoint.y + connects[i].y
+
+            if tmpX < 0 or tmpY < 0 or tmpX >= height or tmpY >= weight:
+                continue
+
+            grayDiff = getGrayDiff(img, currentPoint, Point(tmpX, tmpY))
+
+            if grayDiff < threshold and seedMark[tmpX, tmpY] == 0:
+                seedMark[tmpX, tmpY] = label
+                seedList.append(Point(tmpX, tmpY))
+
+    return seedMark
+
+
+def apply_region_growing(source: np.ndarray):
+
+    src = np.copy(source)
+    color_img = cv2.cvtColor(src, cv2.COLOR_Luv2BGR)
+    img_gray = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
+    seeds = []
+    for i in range(3):
+        x = np.random.randint(0, img_gray.shape[0])
+        y = np.random.randint(0, img_gray.shape[1])
+        seeds.append(Point(x, y))
+
+    # seeds = [Point(10, 10), Point(82, 150), Point(20, 300)]
+    output_image = regionGrow(img_gray, seeds, 10)
+
+    return output_image
