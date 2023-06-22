@@ -524,8 +524,13 @@ elif chosen_id == "tab9":
 
     k_value = sidebar.slider('K Value', 0, step=1, max_value=10, value=4, disabled= flag )    
     if my_upload  is not None:
-        image = Image.open(my_upload)
-        image_1  = np.array(image)
+        path= "D:\\C_v\\Task_4_Segmentation\\images\\" + my_upload.name
+        image_1 = cv2.imread(path)
+        image_1 = cv2.cvtColor(image_1, cv2.COLOR_BGR2RGB)
+        print("path",my_upload.name)
+        # image = cv2.imread(my_upload,0)
+        # image_1 = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # image_1  = np.array(image)
         with l_image:
                     st.markdown('<p style="text-align: center;">Input Image</p>',unsafe_allow_html=True)
                     
@@ -535,37 +540,40 @@ elif chosen_id == "tab9":
         with r_image:
 
                 st.markdown('<p style="text-align: center;">Output Image</p>',unsafe_allow_html=True)
-                if method == "km":
-                    # image_1 = cv2.resize(image_1, (128, 128))
-                    pixel_values = image_1.reshape((-1, 3))
-                    pixel_values = np.float32(pixel_values)
-                    k = km.KMeans(K= k_value, max_iters=100)  
-                    labels = k.predict(pixel_values)
-                    centers = k.cent()
-                    segmented_image = centers[labels.flatten()]
-                    segmented_image_rg = segmented_image.reshape(image_1.shape)
+                # if method == "km":
+                #     # image_1 = cv2.resize(image_1, (128, 128))
+                #     pixel_values = image_1.reshape((-1, 3))
+                #     pixel_values = np.float32(pixel_values)
+                #     k = km.KMeans(K= k_value, max_iters=100)  
+                #     labels = k.predict(pixel_values)
+                #     centers = k.cent()
+                #     segmented_image = centers[labels.flatten()]
+                #     segmented_image_rg = segmented_image.reshape(image_1.shape)
                     
                     # st.image(segmented_image,width=450)
-                elif method == "rg":
+                # if method == "rg":
                     # Apply region growing algorithm
-                    mask = rg.region_growing(image_1,(100,100))
-                    segmented_image_rg =cv2.bitwise_and(image_1, image_1, mask=mask)
-                    segmented_image_rg = cv2.cvtColor(image_1,cv2.COLOR_BGR2RGB)
-                elif method == "ag":
-                    resized_image = cv2.resize(image_1, (128, 128))
-                    segmented_image_rg = Segmentation.apply_agglomerative_clustering(resized_image,15,30)
-                    # cv2.imwrite('Segmentation.jpg', segmentation_img)
+                # mask = rg.region_growing(image_1,(50,50))
+                segmented_image_rg = rg.apply_region_growing(image_1)
+
+                # segmented_image_rg =cv2.bitwise_and(image_1, image_1, mask=mask)
+                # segmented_image_rg = cv2.cvtColor(image_1,cv2.COLOR_BGR2RGB)
+                # elif method == "ag":
+                #     resized_image = cv2.resize(image_1, (128, 128))
+                #     segmented_image_rg = Segmentation.apply_agglomerative_clustering(resized_image,15,30)
+                #     # cv2.imwrite('Segmentation.jpg', segmentation_img)
                         
-                elif method == "ms":
-                    resized_image = cv2.resize(image_1, (200, 200))
-                    segmented_image_rg = Segmentation.mean_shift(resized_image)
-                elif method == "luv":
-                    segmented_image_rg = luv.BGR_To_LUV(image_1) 
+                # elif method == "ms":
+                #     resized_image = cv2.resize(image_1, (200, 200))
+                #     segmented_image_rg = Segmentation.mean_shift(resized_image)
+                # elif method == "luv":
+                    # segmented_image_rg = luv.BGR_To_LUV(image_1) 
 
                 st.image(segmented_image_rg,width=450)
    
 #############################################################################################################
 elif chosen_id == "tab10":
+    names=["ereny","dina","yousef","mariam","bassant"]
     error_path = 'our_faces\\test_images\\404.jpg'
     model = FR.train_svm_with_pca()
     l_image,  r_image = st.columns(2)
@@ -573,26 +581,36 @@ elif chosen_id == "tab10":
     if my_upload  is not None:
         path = 'our_faces\\test_images\\'
         path_1= path + my_upload.name   
-        print(path_1)    
+        image_1 = cv2.imread(path_1)
+        height,width = image_1.shape[1],image_1.shape[0]
+        print(path_1) 
+        print(height,width)   
         with l_image:
-                    st.markdown('<p style="text-align: center;">Input1 Image</p>',unsafe_allow_html=True)
-                    image_1 = cv2.imread(path_1)
+                    st.markdown('<p style="text-align: center;">Input Image</p>',unsafe_allow_html=True)
+                    
                     resizedImage = cv2.resize(image_1,(500,500))
                     faces  = FACE_DETECTION.detect_faces(resizedImage)
                     image =FACE_DETECTION.draw_faces(resizedImage, faces )
                     image = FACE_DETECTION.convertToRGB(resizedImage)
-                    st.image(image,width=200) 
 
+                    st.image(image,width=200) 
+                    
         
         with r_image:              
-                    st.markdown('<p style="text-align: center;"> Image with Face Recognition </p>',unsafe_allow_html=True)
+                    # st.markdown('<p style="text-align: center;"> Output Image </p>',unsafe_allow_html=True)
                     image,prediction,found= FR.predict_with_svm(model,path_1 )
                     if found >=0.5:
                          out_put = image
+
                     else:
                          out_put = cv2.imread(error_path,0)
+                    prediction=int(prediction)-1
+                    print(names[prediction])
+                    st.markdown(names[prediction])
                     st.image(out_put,width=200)
+                   
         with chart1:              
+                
                 
                 
                 st.markdown('<p style="text-align: center;">  </p>',unsafe_allow_html=True)
