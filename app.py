@@ -528,13 +528,8 @@ elif chosen_id == "tab9":
         image_1 = cv2.imread(path)
         image_1 = cv2.cvtColor(image_1, cv2.COLOR_BGR2RGB)
         print("path",my_upload.name)
-        # image = cv2.imread(my_upload,0)
-        # image_1 = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # image_1  = np.array(image)
         with l_image:
                     st.markdown('<p style="text-align: center;">Input Image</p>',unsafe_allow_html=True)
-                    
-                    # image_1 = cv2.cvtColor(image_1,cv2.COLOR_BGR2RGB)  
                     st.image(image_1,width=450)       
       
         with r_image:
